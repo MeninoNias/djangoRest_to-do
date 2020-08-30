@@ -9,6 +9,5 @@ class TaskSerializer(serializers.HyperlinkedModelSerializer):
 
     class Meta:
         model = Task
-        fields = '__all__'
-        exclude = ('highlighted',)
+        fields = ['id', 'title', 'completd', 'owner', 'highlight']
     
