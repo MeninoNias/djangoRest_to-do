@@ -1,56 +1,52 @@
-from django.shortcuts import render
-
+from rest_framework import viewsets
+from rest_framework.decorators import action, api_view
 from rest_framework.response import Response
-from rest_framework.views import APIView
+from rest_framework import permissions
+from rest_framework import renderers
+from rest_framework.reverse import reverse
 
-from core.models import Task
+from core.modulos.task.permissions import IsOwnerOrReadOnly
+
+from django.contrib.auth.models import User
+
+from core.modulos.user.serializers import UserSerializer
 from core.modulos.task.serializers import TaskSerializer
 
+from core.models import Task
 
-class apiOverview(APIView):
+#API ROOT
+@api_view(['GET'])
+def api_root(request, format=None):
+    return Response({
+        'users': reverse('users-list', request=request, format=format),
+        'tasks': reverse('tasks-list', request=request, format=format)
+    })
 
-    def get(self, request,  format=None):
-        api_urls = {
-            'List':'/task-list/',
-            'Create': '/task-create/',
-            'Detail View': '/task-detail/<str:pk>/',
-            'Update': '/task-update/<str:pk>/',
-            'Delete': '/task-delete/<str:pk>/',
-        }
-
-        return Response(api_urls)
-
-class TaskList(APIView):
-
-    def get(self, request, format=None):
-        tasks = Task.objects.all()
-        serializer = TaskSerializer(tasks, many=True)
-        return Response(serializer.data)
-
-class TaskDetail(APIView):
+class UserViewSet(viewsets.ReadOnlyModelViewSet):
     """
-    Retrieve, update or delete a snippet instance.
+    This viewset automatically provides `list` and `detail` actions.
     """
-    def get_object(self, pk):
-        try:
-            return Task.objects.get(pk=pk)
-        except Task.DoesNotExist:
-            raise Http404
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
 
-    def get(self, request, pk, format=None):
-        task = self.get_object(pk)
-        serializer = TaskSerializer(task)
-        return Response(serializer.data)
+class TaskViewSet(viewsets.ModelViewSet):
+    """
+    This viewset automatically provides `list`, `create`, `retrieve`,
+    `update` and `destroy` actions.
 
-    def put(self, request, pk, format=None):
-        task = self.get_object(pk)
-        serializer = TaskSerializer(task, data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    Additionally we also provide an extra `highlight` action.
+    """
+    serializer_class = TaskSerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly,
+                          IsOwnerOrReadOnly]
 
-    def delete(self, request, pk, format=None):
-        task = self.get_object(pk)
-        task.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+    def get_queryset(self):
+        return Task.objects.filter(owner=self.request.user)
+
+    @action(detail=True, renderer_classes=[renderers.StaticHTMLRenderer])
+    def highlight(self, request, *args, **kwargs):
+        task = self.get_object()
+        return Response(task.highlighted)
+
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
