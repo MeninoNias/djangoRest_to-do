@@ -37,11 +37,12 @@ class TaskViewSet(viewsets.ModelViewSet):
     Additionally we also provide an extra `highlight` action.
     """
     serializer_class = TaskSerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly,
+    permission_classes = [permissions.IsAuthenticated,
                           IsOwnerOrReadOnly]
 
     def get_queryset(self):
         return Task.objects.filter(owner=self.request.user)
+       
 
     @action(detail=True, renderer_classes=[renderers.StaticHTMLRenderer])
     def highlight(self, request, *args, **kwargs):
